@@ -1,0 +1,19 @@
+{
+  "scheme": "acme",
+  "userInterfaceStyle": "automatic",
+  "orientation": "default",
+  "web": {
+    "output": "static"
+  },
+  "plugins": [
+    [
+      "expo-router",
+      {
+        "origin": "https://n"
+      }
+    ],
+    "expo-sqlite"
+  ],
+  "name": "nguyenminhdu_22680791",
+  "slug": "nguyenminhdu_22680791"
+}
