@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Text,
   View,
@@ -25,12 +25,10 @@ export default function Page() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  useEffect(() => {
-    loadContacts();
-  }, []);
-
-  const loadContacts = async () => {
+  const loadContacts = useCallback(async () => {
     try {
       await getDatabase();
       const allContacts = await getAllContacts();
@@ -40,57 +38,61 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleAddContact = async (
-    name: string,
-    phone?: string,
-    email?: string
-  ) => {
-    try {
-      await addContact(name, phone, email);
-      await loadContacts(); // Refresh danh sách
-      setModalVisible(false);
-    } catch (error) {
-      console.error("Error adding contact:", error);
-      Alert.alert("Lỗi", "Không thể thêm liên hệ. Vui lòng thử lại.");
-    }
-  };
+  useEffect(() => {
+    loadContacts();
+  }, [loadContacts]);
 
-  const handleToggleFavorite = async (id: number, currentFavorite: number) => {
-    try {
-      const newFavorite = currentFavorite === 1 ? 0 : 1;
-      await updateContact(id, undefined, undefined, undefined, newFavorite);
-      await loadContacts(); // Refresh danh sách
-    } catch (error) {
-      console.error("Error toggling favorite:", error);
-      Alert.alert("Lỗi", "Không thể cập nhật yêu thích. Vui lòng thử lại.");
-    }
-  };
+  const handleAddContact = useCallback(
+    async (name: string, phone?: string, email?: string) => {
+      try {
+        await addContact(name, phone, email);
+        await loadContacts(); // Refresh danh sách
+        setModalVisible(false);
+      } catch (error) {
+        console.error("Error adding contact:", error);
+        Alert.alert("Lỗi", "Không thể thêm liên hệ. Vui lòng thử lại.");
+      }
+    },
+    [loadContacts]
+  );
 
-  const handleEditContact = (contact: Contact) => {
+  const handleToggleFavorite = useCallback(
+    async (id: number, currentFavorite: number) => {
+      try {
+        const newFavorite = currentFavorite === 1 ? 0 : 1;
+        await updateContact(id, undefined, undefined, undefined, newFavorite);
+        await loadContacts(); // Refresh danh sách
+      } catch (error) {
+        console.error("Error toggling favorite:", error);
+        Alert.alert("Lỗi", "Không thể cập nhật yêu thích. Vui lòng thử lại.");
+      }
+    },
+    [loadContacts]
+  );
+
+  const handleEditContact = useCallback((contact: Contact) => {
     setEditingContact(contact);
     setEditModalVisible(true);
-  };
+  }, []);
 
-  const handleUpdateContact = async (
-    id: number,
-    name: string,
-    phone?: string,
-    email?: string
-  ) => {
-    try {
-      await updateContact(id, name, phone, email);
-      await loadContacts(); // Refresh danh sách
-      setEditModalVisible(false);
-      setEditingContact(null);
-    } catch (error) {
-      console.error("Error updating contact:", error);
-      Alert.alert("Lỗi", "Không thể cập nhật liên hệ. Vui lòng thử lại.");
-    }
-  };
+  const handleUpdateContact = useCallback(
+    async (id: number, name: string, phone?: string, email?: string) => {
+      try {
+        await updateContact(id, name, phone, email);
+        await loadContacts(); // Refresh danh sách
+        setEditModalVisible(false);
+        setEditingContact(null);
+      } catch (error) {
+        console.error("Error updating contact:", error);
+        Alert.alert("Lỗi", "Không thể cập nhật liên hệ. Vui lòng thử lại.");
+      }
+    },
+    [loadContacts]
+  );
 
-  const handleDeleteContact = (contact: Contact) => {
+  const handleDeleteContact = useCallback((contact: Contact) => {
     console.log("handleDeleteContact called with:", contact);
     if (!contact || !contact.id) {
       console.error("Invalid contact for deletion");
@@ -124,13 +126,41 @@ export default function Page() {
       ],
       { cancelable: true }
     );
-  };
+  }, []);
+
+  // Filter contacts với useMemo để tối ưu performance
+  const filteredContacts = useMemo(() => {
+    let result = contacts;
+
+    // Filter theo favorite nếu bật
+    if (showFavoritesOnly) {
+      result = result.filter((contact) => contact.favorite === 1);
+    }
+
+    // Filter theo search text (name hoặc phone)
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase().trim();
+      result = result.filter(
+        (contact) =>
+          contact.name.toLowerCase().includes(searchLower) ||
+          (contact.phone && contact.phone.includes(searchText.trim()))
+      );
+    }
+
+    return result;
+  }, [contacts, searchText, showFavoritesOnly]);
 
   return (
     <View className="flex flex-1">
       <Header />
+      <SearchBar
+        searchText={searchText}
+        onSearchChange={setSearchText}
+        showFavoritesOnly={showFavoritesOnly}
+        onToggleFavorites={setShowFavoritesOnly}
+      />
       <ContactsList
-        contacts={contacts}
+        contacts={filteredContacts}
         loading={loading}
         onRefresh={loadContacts}
         onToggleFavorite={handleToggleFavorite}
@@ -534,6 +564,57 @@ function EditContactModal({
   );
 }
 
+function SearchBar({
+  searchText,
+  onSearchChange,
+  showFavoritesOnly,
+  onToggleFavorites,
+}: {
+  searchText: string;
+  onSearchChange: (text: string) => void;
+  showFavoritesOnly: boolean;
+  onToggleFavorites: (value: boolean) => void;
+}) {
+  return (
+    <View style={styles.searchContainer}>
+      <View style={styles.searchInputContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm theo tên hoặc số điện thoại..."
+          value={searchText}
+          onChangeText={onSearchChange}
+          placeholderTextColor="#9ca3af"
+          autoCapitalize="none"
+        />
+        {searchText.length > 0 && (
+          <TouchableOpacity
+            onPress={() => onSearchChange("")}
+            style={styles.clearButton}
+          >
+            <Text style={styles.clearButtonText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      <TouchableOpacity
+        onPress={() => onToggleFavorites(!showFavoritesOnly)}
+        style={[
+          styles.favoriteFilterButton,
+          showFavoritesOnly && styles.favoriteFilterButtonActive,
+        ]}
+      >
+        <Text
+          style={[
+            styles.favoriteFilterText,
+            showFavoritesOnly && styles.favoriteFilterTextActive,
+          ]}
+        >
+          {showFavoritesOnly ? "★" : "☆"} Yêu thích
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function Header() {
   const { top } = useSafeAreaInsets();
   return (
@@ -726,5 +807,56 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: "#ffffff",
+  },
+  searchContainer: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: "#f9fafb",
+  },
+  clearButton: {
+    position: "absolute",
+    right: 12,
+    padding: 4,
+  },
+  clearButtonText: {
+    fontSize: 18,
+    color: "#6b7280",
+    fontWeight: "300",
+  },
+  favoriteFilterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: "#f3f4f6",
+    alignSelf: "flex-start",
+  },
+  favoriteFilterButtonActive: {
+    backgroundColor: "#fef3c7",
+  },
+  favoriteFilterText: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: "500",
+  },
+  favoriteFilterTextActive: {
+    color: "#92400e",
+    fontWeight: "600",
   },
 });
