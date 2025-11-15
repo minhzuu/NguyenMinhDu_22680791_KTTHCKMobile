@@ -27,6 +27,8 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const loadContacts = useCallback(async () => {
     try {
@@ -128,6 +130,96 @@ export default function Page() {
     );
   }, []);
 
+  const handleImportFromAPI = useCallback(async () => {
+    setImporting(true);
+    setImportError(null);
+
+    try {
+      // API endpoint mẫu - bạn có thể thay đổi URL này
+      const response = await fetch(
+        "https://67e2d23197fc65f53537ba62.mockapi.io/simple_contact"
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Map dữ liệu từ API response
+      // API trả về: { id, name, phone, email, ... }
+      const apiContacts = data.map((item: any) => {
+        // Xử lý phone: loại bỏ ký tự đặc biệt, chỉ giữ số
+        let phone = "";
+        if (item.phone) {
+          phone = item.phone.replace(/\D/g, ""); // Loại bỏ tất cả ký tự không phải số
+        }
+
+        return {
+          name: item.name || "",
+          phone: phone,
+          email: item.email || "",
+        };
+      });
+
+      // Lấy danh sách contacts hiện tại để kiểm tra trùng lặp
+      const currentContacts = await getAllContacts();
+      // Normalize phone numbers (chỉ giữ số) để so sánh
+      const existingPhones = new Set(
+        currentContacts
+          .map((c) => {
+            if (c.phone) {
+              return c.phone.replace(/\D/g, "");
+            }
+            return "";
+          })
+          .filter((phone) => phone.length > 0)
+      );
+
+      // Lọc bỏ các contact trùng lặp (theo phone)
+      const newContacts = apiContacts.filter((contact: { phone?: string }) => {
+        if (!contact.phone) return true; // Nếu không có phone thì cho phép thêm
+        const normalizedPhone = contact.phone.replace(/\D/g, "");
+        return (
+          normalizedPhone.length === 0 || !existingPhones.has(normalizedPhone)
+        );
+      });
+
+      // Thêm các contact mới vào database
+      let addedCount = 0;
+      let skippedCount = apiContacts.length - newContacts.length;
+
+      for (const contact of newContacts) {
+        if (contact.name) {
+          // Chỉ thêm nếu có name
+          await addContact(contact.name, contact.phone, contact.email);
+          addedCount++;
+        }
+      }
+
+      // Refresh danh sách
+      await loadContacts();
+
+      // Hiển thị kết quả
+      Alert.alert(
+        "Import thành công",
+        `Đã thêm ${addedCount} liên hệ mới.${
+          skippedCount > 0 ? ` Bỏ qua ${skippedCount} liên hệ trùng lặp.` : ""
+        }`
+      );
+    } catch (error) {
+      console.error("Error importing contacts:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Không thể import liên hệ. Vui lòng thử lại.";
+      setImportError(errorMessage);
+      Alert.alert("Lỗi", errorMessage);
+    } finally {
+      setImporting(false);
+    }
+  }, [loadContacts]);
+
   // Filter contacts với useMemo để tối ưu performance
   const filteredContacts = useMemo(() => {
     let result = contacts;
@@ -187,6 +279,20 @@ export default function Page() {
       >
         <Text style={styles.addButtonText}>+</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.importButton, importing && styles.importButtonDisabled]}
+        onPress={handleImportFromAPI}
+        disabled={importing}
+      >
+        <Text style={styles.importButtonText}>
+          {importing ? "Đang import..." : "Import từ API"}
+        </Text>
+      </TouchableOpacity>
+      {importError && (
+        <View style={styles.importErrorContainer}>
+          <Text style={styles.importErrorText}>{importError}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -858,5 +964,44 @@ const styles = StyleSheet.create({
   favoriteFilterTextActive: {
     color: "#92400e",
     fontWeight: "600",
+  },
+  importButton: {
+    position: "absolute",
+    left: 20,
+    bottom: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: "#10b981",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  importButtonDisabled: {
+    backgroundColor: "#9ca3af",
+    opacity: 0.6,
+  },
+  importButtonText: {
+    fontSize: 14,
+    color: "#ffffff",
+    fontWeight: "600",
+  },
+  importErrorContainer: {
+    position: "absolute",
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: "#fee2e2",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#dc2626",
+  },
+  importErrorText: {
+    fontSize: 14,
+    color: "#dc2626",
+    textAlign: "center",
   },
 });
