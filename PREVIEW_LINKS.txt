@@ -1,0 +1,29 @@
+
+========================================
+PREVIEW BUILD LINKS
+========================================
+
+Sau khi build hoàn tất, EAS sẽ cung cấp link download. 
+Cập nhật các link dưới đây sau khi build:
+
+Android APK:
+https://expo.dev/accounts/minhzu/projects/nguyenminhdu_22680791/builds/82ce8093-0b24-411e-b04c-cc85193ab6c0
+
+========================================
+GHI CHÚ
+========================================
+
+- Preview build sử dụng profile "preview" trong eas.json
+- Android: Tạo file APK để cài đặt trực tiếp
+- iOS: Tạo build có thể cài đặt qua TestFlight hoặc ad-hoc
+- Build có thể mất 10-20 phút để hoàn tất
+- Cần có tài khoản Expo để sử dụng EAS Build
+
+Để xem trạng thái build:
+eas build:list
+
+Để xem chi tiết build:
+eas build:view [BUILD_ID]
+
+========================================
+

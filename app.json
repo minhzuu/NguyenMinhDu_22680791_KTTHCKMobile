@@ -1,19 +1,39 @@
 {
-  "scheme": "acme",
-  "userInterfaceStyle": "automatic",
-  "orientation": "default",
-  "web": {
-    "output": "static"
-  },
-  "plugins": [
-    [
-      "expo-router",
-      {
-        "origin": "https://n"
-      }
+  "expo": {
+    "scheme": "acme",
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://n"
+        }
+      ],
+      "expo-sqlite"
     ],
-    "expo-sqlite"
-  ],
-  "name": "nguyenminhdu_22680791",
-  "slug": "nguyenminhdu_22680791"
+    "name": "Simple Contacts",
+    "slug": "nguyenminhdu_22680791",
+    "version": "1.0.0",
+    "ios": {
+      "bundleIdentifier": "com.nguyenminhdu.simplecontacts",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.nguyenminhdu.simplecontacts"
+    },
+    "extra": {
+      "router": {
+        "origin": "https://n"
+      },
+      "eas": {
+        "projectId": "179db437-2a9e-4a50-9acc-61924125e42d"
+      }
+    }
+  }
 }
