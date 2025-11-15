@@ -16,6 +16,7 @@ import {
   getDatabase,
   addContact,
   updateContact,
+  deleteContact,
 } from "../database/db";
 
 export default function Page() {
@@ -89,6 +90,42 @@ export default function Page() {
     }
   };
 
+  const handleDeleteContact = (contact: Contact) => {
+    console.log("handleDeleteContact called with:", contact);
+    if (!contact || !contact.id) {
+      console.error("Invalid contact for deletion");
+      return;
+    }
+
+    Alert.alert(
+      "Xác nhận xóa",
+      `Bạn có chắc chắn muốn xóa liên hệ "${contact.name}"?`,
+      [
+        {
+          text: "Hủy",
+          style: "cancel",
+          onPress: () => console.log("Delete cancelled"),
+        },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log("Deleting contact with id:", contact.id);
+              await deleteContact(contact.id!);
+              console.log("Contact deleted successfully");
+              await loadContacts(); // Refresh danh sách
+            } catch (error) {
+              console.error("Error deleting contact:", error);
+              Alert.alert("Lỗi", "Không thể xóa liên hệ. Vui lòng thử lại.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <View className="flex flex-1">
       <Header />
@@ -98,6 +135,7 @@ export default function Page() {
         onRefresh={loadContacts}
         onToggleFavorite={handleToggleFavorite}
         onEdit={handleEditContact}
+        onDelete={handleDeleteContact}
       />
       <AddContactModal
         visible={modalVisible}
@@ -129,33 +167,48 @@ function ContactsList({
   onRefresh,
   onToggleFavorite,
   onEdit,
+  onDelete,
 }: {
   contacts: Contact[];
   loading: boolean;
   onRefresh: () => void;
   onToggleFavorite: (id: number, currentFavorite: number) => void;
   onEdit: (contact: Contact) => void;
+  onDelete: (contact: Contact) => void;
 }) {
   const renderContactItem = ({ item }: { item: Contact }) => {
     const isFavorite = item.favorite === 1;
     const favoriteValue = item.favorite || 0;
 
     return (
-      <TouchableOpacity
-        style={styles.contactItem}
-        onLongPress={() => onEdit(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.contactInfo}>
-          <Text style={styles.contactName}>{item.name}</Text>
-          {item.phone && <Text style={styles.contactPhone}>{item.phone}</Text>}
-        </View>
+      <View style={styles.contactItem}>
+        <TouchableOpacity
+          style={styles.contactInfoContainer}
+          onLongPress={() => onEdit(item)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.contactInfo}>
+            <Text style={styles.contactName}>{item.name}</Text>
+            {item.phone && (
+              <Text style={styles.contactPhone}>{item.phone}</Text>
+            )}
+          </View>
+        </TouchableOpacity>
         <View style={styles.contactActions}>
           <TouchableOpacity
             onPress={() => onEdit(item)}
             style={styles.editButton}
           >
             <Text style={styles.editButtonText}>Sửa</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              console.log("Delete button pressed for:", item);
+              onDelete(item);
+            }}
+            style={styles.deleteButton}
+          >
+            <Text style={styles.deleteButtonText}>Xóa</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => {
@@ -168,7 +221,7 @@ function ContactsList({
             <Text style={styles.favoriteIcon}>{isFavorite ? "★" : "☆"}</Text>
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -508,6 +561,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
+  contactInfoContainer: {
+    flex: 1,
+  },
   contactInfo: {
     flex: 1,
   },
@@ -535,6 +591,18 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 14,
     color: "#374151",
+    fontWeight: "500",
+  },
+  deleteButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#fee2e2",
+    marginRight: 8,
+  },
+  deleteButtonText: {
+    fontSize: 14,
+    color: "#dc2626",
     fontWeight: "500",
   },
   favoriteButton: {
