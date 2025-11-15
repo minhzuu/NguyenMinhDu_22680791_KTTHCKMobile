@@ -20,6 +20,8 @@ import {
 
 export default function Page() {
   const [modalVisible, setModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,6 +67,28 @@ export default function Page() {
     }
   };
 
+  const handleEditContact = (contact: Contact) => {
+    setEditingContact(contact);
+    setEditModalVisible(true);
+  };
+
+  const handleUpdateContact = async (
+    id: number,
+    name: string,
+    phone?: string,
+    email?: string
+  ) => {
+    try {
+      await updateContact(id, name, phone, email);
+      await loadContacts(); // Refresh danh sách
+      setEditModalVisible(false);
+      setEditingContact(null);
+    } catch (error) {
+      console.error("Error updating contact:", error);
+      Alert.alert("Lỗi", "Không thể cập nhật liên hệ. Vui lòng thử lại.");
+    }
+  };
+
   return (
     <View className="flex flex-1">
       <Header />
@@ -73,11 +97,21 @@ export default function Page() {
         loading={loading}
         onRefresh={loadContacts}
         onToggleFavorite={handleToggleFavorite}
+        onEdit={handleEditContact}
       />
       <AddContactModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onAdd={handleAddContact}
+      />
+      <EditContactModal
+        visible={editModalVisible}
+        contact={editingContact}
+        onClose={() => {
+          setEditModalVisible(false);
+          setEditingContact(null);
+        }}
+        onUpdate={handleUpdateContact}
       />
       <TouchableOpacity
         style={styles.addButton}
@@ -94,33 +128,47 @@ function ContactsList({
   loading,
   onRefresh,
   onToggleFavorite,
+  onEdit,
 }: {
   contacts: Contact[];
   loading: boolean;
   onRefresh: () => void;
   onToggleFavorite: (id: number, currentFavorite: number) => void;
+  onEdit: (contact: Contact) => void;
 }) {
   const renderContactItem = ({ item }: { item: Contact }) => {
     const isFavorite = item.favorite === 1;
     const favoriteValue = item.favorite || 0;
 
     return (
-      <View style={styles.contactItem}>
+      <TouchableOpacity
+        style={styles.contactItem}
+        onLongPress={() => onEdit(item)}
+        activeOpacity={0.7}
+      >
         <View style={styles.contactInfo}>
           <Text style={styles.contactName}>{item.name}</Text>
           {item.phone && <Text style={styles.contactPhone}>{item.phone}</Text>}
         </View>
-        <TouchableOpacity
-          onPress={() => {
-            if (item.id) {
-              onToggleFavorite(item.id, favoriteValue);
-            }
-          }}
-          style={styles.favoriteButton}
-        >
-          <Text style={styles.favoriteIcon}>{isFavorite ? "★" : "☆"}</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.contactActions}>
+          <TouchableOpacity
+            onPress={() => onEdit(item)}
+            style={styles.editButton}
+          >
+            <Text style={styles.editButtonText}>Sửa</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              if (item.id) {
+                onToggleFavorite(item.id, favoriteValue);
+              }
+            }}
+            style={styles.favoriteButton}
+          >
+            <Text style={styles.favoriteIcon}>{isFavorite ? "★" : "☆"}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -287,6 +335,152 @@ function AddContactModal({
   );
 }
 
+function EditContactModal({
+  visible,
+  contact,
+  onClose,
+  onUpdate,
+}: {
+  visible: boolean;
+  contact: Contact | null;
+  onClose: () => void;
+  onUpdate: (id: number, name: string, phone?: string, email?: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
+
+  // Cập nhật form khi contact thay đổi
+  useEffect(() => {
+    if (contact) {
+      setName(contact.name || "");
+      setPhone(contact.phone || "");
+      setEmail(contact.email || "");
+      setErrors({});
+    }
+  }, [contact]);
+
+  const validate = (): boolean => {
+    const newErrors: { name?: string; email?: string } = {};
+
+    // Validate name (bắt buộc)
+    if (!name.trim()) {
+      newErrors.name = "Tên không được để trống";
+    }
+
+    // Validate email (nếu có thì phải có @)
+    if (email.trim() && !email.includes("@")) {
+      newErrors.email = "Email phải chứa ký tự @";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSave = () => {
+    if (validate() && contact?.id) {
+      onUpdate(
+        contact.id,
+        name.trim(),
+        phone.trim() || undefined,
+        email.trim() || undefined
+      );
+    }
+  };
+
+  const handleClose = () => {
+    setName("");
+    setPhone("");
+    setEmail("");
+    setErrors({});
+    onClose();
+  };
+
+  if (!contact) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={handleClose}
+    >
+      <TouchableOpacity
+        style={styles.modalContainer}
+        activeOpacity={1}
+        onPress={handleClose}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+          style={styles.modalContent}
+        >
+          <Text style={styles.modalTitle}>Sửa liên hệ</Text>
+
+          <TextInput
+            style={[styles.input, errors.name && styles.inputError]}
+            placeholder="Tên *"
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              if (errors.name) {
+                setErrors({ ...errors, name: undefined });
+              }
+            }}
+            placeholderTextColor="#9ca3af"
+          />
+          {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+
+          <TextInput
+            style={styles.input}
+            placeholder="Số điện thoại"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            placeholderTextColor="#9ca3af"
+          />
+
+          <TextInput
+            style={[styles.input, errors.email && styles.inputError]}
+            placeholder="Email"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (errors.email) {
+                setErrors({ ...errors, email: undefined });
+              }
+            }}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholderTextColor="#9ca3af"
+          />
+          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={handleClose}
+            >
+              <Text style={[styles.buttonText, styles.cancelButtonText]}>
+                Hủy
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.saveButton]}
+              onPress={handleSave}
+            >
+              <Text style={[styles.buttonText, styles.saveButtonText]}>
+                Cập nhật
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 function Header() {
   const { top } = useSafeAreaInsets();
   return (
@@ -327,9 +521,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
   },
+  contactActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  editButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#e5e7eb",
+    marginRight: 8,
+  },
+  editButtonText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
   favoriteButton: {
     padding: 8,
-    marginLeft: 8,
   },
   favoriteIcon: {
     fontSize: 24,
