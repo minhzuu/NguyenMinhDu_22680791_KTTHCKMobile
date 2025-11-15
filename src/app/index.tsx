@@ -15,6 +15,7 @@ import {
   Contact,
   getDatabase,
   addContact,
+  updateContact,
 } from "../database/db";
 
 export default function Page() {
@@ -53,6 +54,17 @@ export default function Page() {
     }
   };
 
+  const handleToggleFavorite = async (id: number, currentFavorite: number) => {
+    try {
+      const newFavorite = currentFavorite === 1 ? 0 : 1;
+      await updateContact(id, undefined, undefined, undefined, newFavorite);
+      await loadContacts(); // Refresh danh sách
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      Alert.alert("Lỗi", "Không thể cập nhật yêu thích. Vui lòng thử lại.");
+    }
+  };
+
   return (
     <View className="flex flex-1">
       <Header />
@@ -60,6 +72,7 @@ export default function Page() {
         contacts={contacts}
         loading={loading}
         onRefresh={loadContacts}
+        onToggleFavorite={handleToggleFavorite}
       />
       <AddContactModal
         visible={modalVisible}
@@ -80,19 +93,33 @@ function ContactsList({
   contacts,
   loading,
   onRefresh,
+  onToggleFavorite,
 }: {
   contacts: Contact[];
   loading: boolean;
   onRefresh: () => void;
+  onToggleFavorite: (id: number, currentFavorite: number) => void;
 }) {
   const renderContactItem = ({ item }: { item: Contact }) => {
+    const isFavorite = item.favorite === 1;
+    const favoriteValue = item.favorite || 0;
+
     return (
       <View style={styles.contactItem}>
         <View style={styles.contactInfo}>
           <Text style={styles.contactName}>{item.name}</Text>
           {item.phone && <Text style={styles.contactPhone}>{item.phone}</Text>}
         </View>
-        {item.favorite === 1 && <Text style={styles.favoriteIcon}>⭐</Text>}
+        <TouchableOpacity
+          onPress={() => {
+            if (item.id) {
+              onToggleFavorite(item.id, favoriteValue);
+            }
+          }}
+          style={styles.favoriteButton}
+        >
+          <Text style={styles.favoriteIcon}>{isFavorite ? "★" : "☆"}</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -300,9 +327,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
   },
+  favoriteButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
   favoriteIcon: {
-    fontSize: 20,
-    marginLeft: 12,
+    fontSize: 24,
+    color: "#fbbf24",
   },
   emptyContainer: {
     flex: 1,
