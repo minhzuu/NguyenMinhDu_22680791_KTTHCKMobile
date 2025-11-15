@@ -22,6 +22,7 @@ export const getDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
 const initDatabase = async () => {
   if (!db) return;
 
+  // Tạo bảng contacts nếu chưa có
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS contacts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +33,35 @@ const initDatabase = async () => {
       created_at INTEGER
     );
   `);
+
+  // Seed dữ liệu mẫu nếu bảng trống
+  await seedSampleData();
+};
+
+const seedSampleData = async () => {
+  if (!db) return;
+
+  // Kiểm tra xem đã có dữ liệu chưa
+  const countResult = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM contacts"
+  );
+
+  // Nếu chưa có dữ liệu, seed 2-3 contact mẫu
+  if (countResult && countResult.count === 0) {
+    const sampleContacts = [
+      { name: "Nguyễn Văn A", phone: "0901234567" },
+      { name: "Trần Thị B", phone: "0987654321" },
+      { name: "Lê Văn C", phone: "0912345678" },
+    ];
+
+    const created_at = Date.now();
+    for (const contact of sampleContacts) {
+      await db.runAsync(
+        "INSERT INTO contacts (name, phone, favorite, created_at) VALUES (?, ?, ?, ?)",
+        [contact.name, contact.phone, 0, created_at]
+      );
+    }
+  }
 };
 
 export const addContact = async (
